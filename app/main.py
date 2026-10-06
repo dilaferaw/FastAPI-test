@@ -11,9 +11,6 @@ app = FastAPI()
 
 
 def generate_string(length: int) -> str:
-    if length < 0:
-        raise ValueError("Length must be non-negative")
-
     alphabet = string.ascii_lowercase + string.digits
     return "".join(secrets.choice(alphabet) for _ in range(length))
 
@@ -21,8 +18,9 @@ def generate_string(length: int) -> str:
 ### DB
 
 tmp_db = {
-    "taken_urls": {},  # orig_url: short_code
-    "reserved_codes": ("docs", "redoc", "shorten", "admin", "openapi.json"),
+    "url_to_code": {},
+    "code_to_url": {},  # short_code: orig_url
+    "reserved_codes": ("docs", "redoc", "shorten", "admin", "openapi.json", "health"),
 }
 
 ## PYDANTIC MODELS
@@ -31,8 +29,12 @@ tmp_db = {
 class Payload(BaseModel):
     url: HttpUrl
     custom_code: (
-        Annotated[str, StringConstraints(max_length=6, pattern=r"^[a-z0-9]*$")]
+        Annotated[
+            str, StringConstraints(min_length=3, max_length=16, pattern=r"^[a-z0-9]+$")
+        ]
     ) | None = None
+    # I made that the generated codes are always small letters to minimize confusion if the
+    # end user have to type it from memory. (and to avoid colision bugs caused by case insesitivity.)
 
 
 class ResponseModel(BaseModel):
@@ -47,34 +49,43 @@ class ResponseModel(BaseModel):
 
 @app.post("/shorten", response_model=ResponseModel, status_code=status.HTTP_201_CREATED)
 def shortener(payload: Payload):
-    if str(payload.custom_code) in tmp_db["reserved_codes"]:
+    code = payload.custom_code
+    url = str(payload.url)
+    if url in tmp_db["url_to_code"]:
+        return ResponseModel(
+            short_url=f"http://localhost:8000/{tmp_db['url_to_code'][url]}",
+            code=tmp_db["url_to_code"][url],
+            original_url=url,
+            created=False,
+        )
+    # this tiny if statment right here does all the idepotency of the urls sent to the
+    # app and it added new ones to it's db, but forbid duplication of existing ones.
+
+    if payload.custom_code in tmp_db["reserved_codes"]:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT, detail="Short code reserved"
         )
-    if str(payload.url) in tmp_db["taken_urls"].keys():
-        return ResponseModel(
-            short_url=f"http://localhost:8000/{tmp_db['taken_urls'][str(payload.url)]}",
-            code=tmp_db["taken_urls"][str(payload.url)],
-            original_url=payload.url,
-            created=False,
-        )
 
-    if not payload.custom_code:
-        payload.custom_code = generate_string(6)
-        while str(payload.custom_code) in tmp_db["taken_urls"].values():
-            payload.custom_code = generate_string(6)
-
-    if str(payload.custom_code) in tmp_db["taken_urls"].values():
+    if payload.custom_code in tmp_db["code_to_url"]:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT, detail="Short code already taken"
         )
+    if not code:
+        code = generate_string(6)
+        while code in tmp_db["code_to_url"]:
+            code = generate_string(6)
+            # this while loop is to avoid collisions in the generated codes, but
+            # the chances of that happening are very low.
+            # the digit limit for out generated codes is 6, which gives us 36^6 = 2,176,782,336 possible combinations.
+            # which is designed to be enough for a small scale url shortener.
 
-    tmp_db["taken_urls"][str(payload.url)] = str(payload.custom_code)
+    tmp_db["url_to_code"][url] = code
+    tmp_db["code_to_url"][code] = url
 
     response = ResponseModel(
-        short_url=f"http://localhost:8000/{payload.custom_code}",
-        code=payload.custom_code,
-        original_url=payload.url,
+        short_url=f"http://localhost:8000/{code}",
+        code=code,
+        original_url=url,
         created=True,
     )
     return response
@@ -82,12 +93,17 @@ def shortener(payload: Payload):
 
 @app.get("/{code}")
 def redirector(code: str):
-    if code in tmp_db["taken_urls"].values():
+    if code in tmp_db["code_to_url"]:
         return RedirectResponse(
-            url=tmp_db["taken_urls"][code],
-            status_code=status.HTTP_308_PERMANENT_REDIRECT,
+            url=tmp_db["code_to_url"][code],
+            status_code=status.HTTP_302_FOUND,
         )
+    # learned this recently that a browser does caching and other operations based on the status
+    # code it recieves so to not "poison" the user cache we'll use a simple 302.
     else:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Short code not found"
         )
+
+
+# Removed trailing slash from the endpoint to avoid confusion and because the short url has to be exact.
