@@ -91,6 +91,8 @@ def shortener(payload: Payload):
     return response
 
 
+# Removed trailing slash from the endpoint to
+# avoid confusion and because the short url has to be exact.
 @app.get("/{code}")
 def redirector(code: str):
     if code in tmp_db["code_to_url"]:
@@ -104,6 +106,3 @@ def redirector(code: str):
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Short code not found"
         )
-
-
-# Removed trailing slash from the endpoint to avoid confusion and because the short url has to be exact.
