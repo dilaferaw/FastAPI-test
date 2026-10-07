@@ -179,3 +179,9 @@ Started 2026-10-06. Will update when passed.
 **Lesson 3 — Postgres + Alembic.** Replace `tmp_db` with real persistence.
 Async SQLAlchemy 2.0. Migration from in-memory to DB-backed without breaking
 the tests.
+
+#### Student answer to 3 questions
+- autouse enables the fixture to run for every test without us having to call it.
+- because we want to test behavior and not implementation detail the "is"
+ way is more robust and a meaningful test.
+- test isolation is making each test independent which makes them atomic and testable in any order and it helps to avoid flaky tests because our tests won't be order dependent.
