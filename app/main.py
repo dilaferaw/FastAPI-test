@@ -74,6 +74,9 @@ def shortener(payload: Payload):
         code = generate_string(6)
         while code in tmp_db["code_to_url"]:
             code = generate_string(6)
+
+            # can't be reached by tests.
+
             # this while loop is to avoid collisions in the generated codes, but
             # the chances of that happening are very low.
             # the digit limit for out generated codes is 6, which gives us 36^6 = 2,176,782,336 possible combinations.

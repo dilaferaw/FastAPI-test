@@ -1,2 +1,7 @@
-__pycache__
-.vscode
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.coverage
+tests/.coverage
+htmlcov/

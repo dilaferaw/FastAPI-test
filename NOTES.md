@@ -109,3 +109,73 @@ without a reset fixture.
 ## Lesson 2 — Tests ⏳ (in progress)
 
 Started 2026-10-06. Will update when passed.
+
+---
+
+## Lesson 2 — Tests ✅
+
+**Date:** 2026-10-07
+**Status:** PASS (11/11 tests, 98% coverage on app/main.py)
+
+### What was built
+
+- `tests/conftest.py` — two fixtures: `client` (TestClient wrapper) and
+  `reset_db` (autouse, clears tmp_db before every test)
+- `tests/test_shortener.py` — 11 tests covering every behavior from Lesson 1's
+  curl suite, plus two extra validation cases and a randomness smoke test
+- `pyproject.toml` — added `[tool.pytest.ini_options] testpaths = ["tests"]`
+- `.gitignore` — coverage artifacts, caches, .venv
+
+### Concepts learned
+
+- **pytest basics:** test functions named `test_*`, `assert` statements,
+  discovery via `testpaths`, `-v` for verbose.
+- **Fixtures:** `@pytest.fixture` decorator. Request them as function
+  parameters. `autouse=True` means "run for every test without opt-in."
+- **`conftest.py`:** special file pytest reads automatically. Fixtures defined
+  here are available to all tests in the folder.
+- **TestClient:** in-process HTTP client via `fastapi.testclient`. No server
+  needed. `follow_redirects=False` for testing 3xx responses.
+- **Test isolation:** each test must start from identical state regardless of
+  order. The module-level `tmp_db` dict breaks this without the reset fixture.
+- **Behavior vs implementation:** test `created is True`, not `code == "abc123"`.
+  The first verifies product behavior; the second couples the test to the RNG.
+- **`is` vs `==` for booleans:** `is True/False` is identity, `== True/False` is
+  equality. `1 == True` in Python, so `==` is weaker. Use `is`.
+
+### Three questions (my answers, in my own words)
+
+1. **Why `autouse=True` on `reset_db`:**
+   <you write this — what breaks without it, why not opt-in>
+
+2. **Why `is True` beats `== "abc123"`:**
+   <you write this — behavior vs implementation, what breaks when RNG changes>
+
+3. **What "test isolation" means:**
+   <you write this — the specific failure mode, order-dependence>
+
+### Bugs hit and fixed
+
+- Committed `tests/.coverage` (binary artifact). Fixed with
+  `git rm --cached tests/.coverage` + `.gitignore`. Learned: never commit
+  generated files.
+- `== True` / `== False` in assertions. Switched to `is`.
+- `test_shorten_invalid_custom_code` was testing two things (uppercase
+  rejection AND length rejection). Split into two tests. Rule: one test, one
+  behavior. If the test name needs "and," split it.
+- Line 76 (collision retry inside `while`) is uncovered. Effectively untestable
+  without mocking `secrets.choice`. Noted, deferred to a later lesson on mocks.
+
+### Current limitations
+
+- State is still in-memory. Tests are coupled to the module-level `tmp_db`.
+  When we move to Postgres in Lesson 3, `reset_db` gets replaced with proper
+  transaction rollback per test.
+- Starlette deprecation warning about `httpx` vs `httpx2` — ignored for now,
+  the async client in Lesson 5 sidesteps it.
+
+### Next up
+
+**Lesson 3 — Postgres + Alembic.** Replace `tmp_db` with real persistence.
+Async SQLAlchemy 2.0. Migration from in-memory to DB-backed without breaking
+the tests.

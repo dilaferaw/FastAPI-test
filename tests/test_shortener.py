@@ -4,7 +4,7 @@
 def test_shorten_basic(client):
     r = client.post("/shorten", json={"url": "https://example.com"})
     assert r.status_code == 201
-    assert r.json()["created"] == True
+    assert r.json()["created"] is True
     assert len(r.json()["code"]) == 6
     assert r.json()["short_url"].endswith(r.json()["code"])
 
@@ -14,7 +14,7 @@ def test_shorten_idempotent(client):
     r2 = client.post("/shorten", json={"url": "https://example.com"})
 
     assert r.json()["code"] == r2.json()["code"]
-    assert r2.json()["created"] == False
+    assert r2.json()["created"] is False
 
 
 def test_shorten_custom_code(client):
@@ -60,16 +60,18 @@ def test_shorten_missing_url(client):
     assert r.status_code == 422
 
 
-def test_shorten_invalid_custom_code(client):
+def test_shorten_custom_code_uppercase_rejected(client):
     r = client.post(
         "/shorten", json={"url": "https://example.com", "custom_code": "DILA"}
     )
+    assert r.status_code == 422
 
-    r2 = client.post(
+
+def test_shorten_custom_code_too_short_rejected(client):
+    r = client.post(
         "/shorten", json={"url": "https://example.com", "custom_code": "ab"}
     )
     assert r.status_code == 422
-    assert r2.status_code == 422
 
 
 def test_redirect_success(client):
@@ -87,10 +89,8 @@ def test_redirect_missing(client):
     assert r.status_code == 404
 
 
-# There is slim but certain probability that the random code generator
-# will create duplicate codes for different url but this is resolved by
-# the if statments which filter these kind of cases in the "/shorten"
-# endpoint. unless the generator exhausts all the possible combinations of codes, which is very unlikely to happen.
+# this is a smoke test not an exhaustive one, because collisions are rare to
+# reproduce artificially.
 def test_random_code_is_random(client):
     r = client.post("/shorten", json={"url": "https://example.com"})
     r2 = client.post("/shorten", json={"url": "https://example2.com"})
