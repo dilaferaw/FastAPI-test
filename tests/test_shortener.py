@@ -1,9 +1,4 @@
-# def test_shorten_reserved_code(client):
-#     r = client.post(
-#         "/shorten",
-#         json={"url": "https://example.com", "custom_code": "docs"},
-#     )
-#     assert r.status_code == 409
+# test_shortener.py
 
 
 def test_shorten_basic(client):
